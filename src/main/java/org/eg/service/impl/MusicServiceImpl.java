@@ -1,5 +1,7 @@
 package org.eg.service.impl;
 
+
+import io.micrometer.common.util.StringUtils;
 import org.eg.entity.Music;
 import org.eg.enums.FileTypeEnum;
 import org.eg.repository.MusicRepository;
@@ -25,19 +27,28 @@ public class MusicServiceImpl implements MediaService<Music> {
     }
 
     @Override
-    public boolean addMedia(String name, Boolean is_local, String url, String local_address, MultipartFile file) {
+    public boolean addMedia(String name, Boolean is_local, String url, MultipartFile file) {
         Music music = new Music();
         music.setMusic_name(name);
         music.setIs_local(is_local);
         music.setUrl(url);
-        music.setLocal_address(local_address);
 
-        boolean flag = true;
-        if(is_local & file != null) {
-            flag = FileUtils.uploadFile(file, name, FileTypeEnum.Music);
+        if(is_local) {
+            if(file != null) {
+                String file_path = null;
+                file_path = FileUtils.uploadFile(file, name, FileTypeEnum.Music);
+                if(StringUtils.isNotBlank(file_path)) {
+                    music.setLocal_address(file_path);
+                    musicRepository.saveAndFlush(music);
+                    return true;
+                }
+            }
+            else {
+                LOG.info("file is null");
+            }
         }
-
-        if(flag) {
+        else {
+            music.setLocal_address("");
             musicRepository.saveAndFlush(music);
             return true;
         }
@@ -46,16 +57,27 @@ public class MusicServiceImpl implements MediaService<Music> {
     }
 
     @Override
-    public boolean updateMediaInfo(Integer id, String name, Boolean is_local, String url, String local_address) {
+    public boolean updateMediaInfo(Integer id, String name, String url) {
         Music music = musicRepository.findById(id).orElse(null);
+
         if(music == null) {
             LOG.info("failed to update music info: cannot find the record in database");
             return false;
         }
-        music.setMusic_name(name);
-        music.setIs_local(is_local);
-        music.setUrl(url);
-        music.setLocal_address(local_address);
+
+        if(!music.getIs_local() & !url.isEmpty()) {
+            music.setUrl(url);
+        }
+        if(!music.getMusic_name().equals(name) & !name.isEmpty()) {
+            String new_address = FileUtils.renameFile(music.getLocal_address(), name);
+            if(new_address.isEmpty()) {
+                LOG.info("failed to rename file");
+                return false;
+            }
+            music.setMusic_name(name);
+            music.setLocal_address(new_address);
+        }
+
         musicRepository.saveAndFlush(music);
         return true;
     }
@@ -63,9 +85,20 @@ public class MusicServiceImpl implements MediaService<Music> {
     @Override
     public boolean deleteMedia(Integer id) {
         if(musicRepository.existsById(id)) {
+            Music target = musicRepository.findById(id).orElse(null);
+            assert target != null;
+            if(target.getIs_local()) {
+               boolean delete_result = FileUtils.deleteFile(target.getLocal_address());
+               if(!delete_result) {
+                   LOG.info("failed to delete local file");
+                   return false;
+               }
+            }
             musicRepository.deleteById(id);
+            return true;
         }
-        return true;
+        LOG.info("cannot find the record");
+        return false;
     }
 
     @Override

@@ -16,15 +16,31 @@ public class FileUtils {
     private static Environment env;
     private static final Logger LOG = LoggerFactory.getLogger(FileUtils.class);
 
-    public static boolean uploadFile(MultipartFile file, String file_name, FileTypeEnum file_type_enum) {
+    public static String uploadFile(MultipartFile file, String file_name, FileTypeEnum file_type_enum) {
+        String original_name = file.getOriginalFilename();
+        assert original_name != null;
+        String ext = original_name.substring(original_name.lastIndexOf("."));
+
         String root_path = env.getProperty("utils.upload-file-path") + '/';
         String file_type = file_type_enum.getType() + '/';
-        String file_path = root_path + file_type + file_name;
-        return saveFile(file, file_path);
+        String file_path = root_path + file_type + file_name + '.' + ext;
+
+        if(saveFile(file, file_path)) {
+            return file_path;
+        }
+        else {
+            return "";
+        }
     }
 
     public static boolean saveFile(MultipartFile file, String file_path) {
         File dest = new File(file_path);
+
+        if(dest.exists()) {
+            LOG.info("file already exists");
+            return false;
+        }
+
         if (!dest.getParentFile().exists()) {
             if (!dest.getParentFile().mkdirs()) {
                 LOG.info("failed to make parent directory when saving file");
@@ -40,5 +56,41 @@ public class FileUtils {
         }
 
         return true;
+    }
+
+    public static boolean deleteFile(String file_path) {
+        File file = new File(file_path);
+        if(!file.exists()) {
+            LOG.info("file does not exist");
+            return false;
+        }
+        if(!file.delete()) {
+            LOG.info("failed to delete the file");
+            return false;
+        }
+        return true;
+    }
+
+    public static String renameFile(String file_path, String new_name) {
+        File old = new File(file_path);
+        if(!old.exists()) {
+            LOG.info("file does not exist");
+            return "";
+        }
+
+        String new_path = file_path.substring(0, file_path.lastIndexOf('/')) + "/" + new_name + "." + file_path.substring(file_path.lastIndexOf('.'));
+        File new_file = new File(new_path);
+        if(new_file.exists()) {
+            LOG.info("file already exists");
+            return "";
+        }
+        boolean rename_result = old.renameTo(new_file);
+        if(!rename_result) {
+            LOG.info("failed to rename file");
+            return "";
+        }
+
+        return new_path;
+
     }
 }
