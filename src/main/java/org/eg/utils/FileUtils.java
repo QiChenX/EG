@@ -5,16 +5,22 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
+import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.util.Arrays;
 
-
+@Component
 public class FileUtils {
-    @Autowired
+
     private static Environment env;
     private static final Logger LOG = LoggerFactory.getLogger(FileUtils.class);
+
+    @Autowired
+    private void setEnv(Environment env) {
+        FileUtils.env = env;
+    }
 
     public static String uploadFile(MultipartFile file, String file_name, FileTypeEnum file_type_enum) {
         String original_name = file.getOriginalFilename();
@@ -23,7 +29,7 @@ public class FileUtils {
 
         String root_path = env.getProperty("utils.upload-file-path") + '/';
         String file_type = file_type_enum.getType() + '/';
-        String file_path = root_path + file_type + file_name + '.' + ext;
+        String file_path = root_path + file_type + file_name + ext;
 
         if(saveFile(file, file_path)) {
             return file_path;
@@ -78,7 +84,7 @@ public class FileUtils {
             return "";
         }
 
-        String new_path = file_path.substring(0, file_path.lastIndexOf('/')) + "/" + new_name + "." + file_path.substring(file_path.lastIndexOf('.'));
+        String new_path = file_path.substring(0, file_path.lastIndexOf('/')) + "/" + new_name + file_path.substring(file_path.lastIndexOf('.'));
         File new_file = new File(new_path);
         if(new_file.exists()) {
             LOG.info("file already exists");
